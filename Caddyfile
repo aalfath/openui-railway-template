@@ -1,0 +1,37 @@
+{
+	admin off
+	auto_https off
+	persist_config off
+	servers {
+		trusted_proxies static private_ranges
+	}
+	log {
+		output stdout
+		level WARN
+	}
+}
+
+:{$PORT:8080} {
+	# Open health path for Railway: answers only when the OpenUI server does.
+	handle /healthz {
+		rewrite * /favicon.png
+		reverse_proxy 127.0.0.1:7878
+	}
+
+	# Placeholder images and sounds that generated UIs load from inside the
+	# preview iframe (served from wandb.github.io, which can't send our login).
+	@placeholders path_regexp ^/openui/[^/]+\.(svg|mp3)$
+	handle @placeholders {
+		reverse_proxy 127.0.0.1:7878
+	}
+
+	# Everything else (web UI and the LLM proxy API) needs the generated login.
+	handle {
+		basic_auth {
+			{$OPENUI_USERNAME} {$OPENUI_PASSWORD_HASH}
+		}
+		reverse_proxy 127.0.0.1:7878 {
+			flush_interval -1
+		}
+	}
+}
